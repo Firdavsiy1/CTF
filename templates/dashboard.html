@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+
+{% block header_title %}dashboard{% endblock %}
+
+{% block content %}
+{% if is_mentor %}
+<div class="max-w-7xl mx-auto mb-6 fade-in">
+    <div class="glass-panel rounded-xl p-4 border border-[#9fef00]/50 bg-[#9fef00]/5 flex flex-col md:flex-row items-center justify-between gap-4 relative overflow-hidden">
+        <div class="flex items-center gap-4 relative z-10">
+            <div class="p-3 bg-[#9fef00]/20 rounded-full text-[#9fef00] animate-pulse">
+                <i data-lucide="shield-alert" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <h3 class="text-white font-bold text-lg">Admin Access Detected</h3>
+                <p class="text-[#9ca3af] text-sm">You have privileges to manage challenges and users.</p>
+            </div>
+        </div>
+        <a href="{% url 'mentors:dashboard' %}" class="relative z-10 bg-[#9fef00] hover:bg-[#8cd600] text-black font-bold py-2 px-6 rounded transition-all shadow-[0_0_15px_rgba(159,239,0,0.3)] hover:shadow-[0_0_25px_rgba(159,239,0,0.5)] flex items-center gap-2">
+            <span>ENTER ADMIN CONSOLE</span>
+            <i data-lucide="arrow-right" class="w-4 h-4"></i>
+        </a>
+
+        <!-- Background Decor -->
+        <div class="absolute -right-10 -top-10 w-32 h-32 bg-[#9fef00]/10 rounded-full blur-xl"></div>
+    </div>
+</div>
+{% endif %}
+<section class="max-w-7xl mx-auto fade-in">
+     <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
+         <!-- Owned Flags -->
+         <div class="glass-panel rounded-xl p-6 relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300">
+             <div class="absolute -right-4 -top-4 p-4 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity rotate-12 transform scale-150">
+                 <i data-lucide="flag" class="w-32 h-32 text-white"></i>
+             </div>
+             <h3 class="text-[#9ca3af] text-xs font-bold uppercase tracking-widest mb-2">Owned Flags</h3>
+             <div class="text-4xl font-bold text-white mb-2 font-mono tracking-tight">{{ owned_flags }} <span class="text-sm text-[#5a6278] font-sans font-normal align-middle ml-1">/ {{ total_flags }}</span></div>
+             <div class="w-full bg-[#000] h-2 rounded-full mt-4 border border-[#2c2f3b]">
+                 <div class="bg-gradient-to-r from-[#9fef00] to-[#7dbf00] h-full rounded-full shadow-[0_0_10px_rgba(159,239,0,0.3)]" style="width: {{ progress_percent }}%"></div>
+             </div>
+         </div>
+
+         <!-- Continue Playing -->
+         <a href="{% url 'challenges' %}" class="glass-panel rounded-xl p-6 flex flex-col justify-center items-center text-center relative overflow-hidden group cursor-pointer hover:border-[#9fef00]/30 transition-colors">
+             <div class="absolute inset-0 bg-gradient-to-br from-[#9fef00]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+             <div class="w-14 h-14 rounded-full bg-[#9fef00]/10 flex items-center justify-center mb-4 text-[#9fef00] group-hover:scale-110 transition-transform duration-300 border border-[#9fef00]/20">
+                 <i data-lucide="play" class="w-6 h-6 ml-1 fill-current"></i>
+             </div>
+             <h3 class="text-white font-bold text-lg group-hover:text-[#9fef00] transition-colors">Continue Playing</h3>
+             <p class="text-[#5a6278] text-xs mt-1">Pick up where you left off</p>
+         </a>
+     </div>
+
+     <h2 class="text-xl font-bold text-white mb-5 flex items-center gap-3">
+        <div class="w-1 h-6 bg-[#9fef00] shadow-[0_0_10px_rgba(159,239,0,0.5)]"></div>
+        Activity Log
+     </h2>
+     <div class="glass-panel rounded-xl overflow-hidden border border-[#2c2f3b]">
+         <div class="p-4 border-b border-[#2c2f3b] bg-[#15171e] flex items-center gap-3">
+             <div class="flex gap-1.5"><div class="w-2.5 h-2.5 rounded-full bg-red-500/20 border border-red-500/50"></div><div class="w-2.5 h-2.5 rounded-full bg-yellow-500/20 border border-yellow-500/50"></div><div class="w-2.5 h-2.5 rounded-full bg-green-500/20 border border-green-500/50"></div></div>
+             <span class="text-xs text-[#5a6278] font-mono ml-2">user_activity.log</span>
+         </div>
+         <div>
+             {% for activity in activity_log %}
+             <div class="flex items-center justify-between p-4 border-b border-[#2c2f3b]/50 hover:bg-white/5 transition-colors group cursor-default">
+                 <div class="flex items-center gap-4">
+                     {% if activity.type == 'solve' %}
+                         <div class="p-2 rounded bg-[#9fef00]/10 text-[#9fef00]"><i data-lucide="check-circle" class="w-5 h-5"></i></div>
+                         <div>
+                             <div class="text-white font-bold text-sm group-hover:text-[#9fef00] transition-colors">Solved "{{ activity.challenge.title }}"</div>
+                             <div class="text-[#5a6278] text-xs mt-0.5">{{ activity.challenge.category.name }} • {{ activity.challenge.points }} pts</div>
+                         </div>
+                     {% else %}
+                         <div class="p-2 rounded bg-red-500/10 text-red-500"><i data-lucide="x-circle" class="w-5 h-5"></i></div>
+                         <div>
+                             <div class="text-white font-bold text-sm group-hover:text-red-500 transition-colors">Failed "{{ activity.challenge.title }}"</div>
+                             <div class="text-[#5a6278] text-xs mt-0.5">{{ activity.challenge.category.name }} • {{ activity.challenge.points }} pts</div>
+                         </div>
+                     {% endif %}
+                 </div>
+                 <span class="text-[#5a6278] text-xs font-mono bg-black/30 px-2 py-1 rounded border border-white/5">{{ activity.date|timesince }} ago</span>
+             </div>
+             {% empty %}
+             <div class="p-4 text-center text-[#5a6278]">No activity yet.</div>
+             {% endfor %}
+         </div>
+     </div>
+</section>
+{% endblock %}

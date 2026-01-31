@@ -1,0 +1,758 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block header_title %}challenges{% endblock %}
+
+{% block content %}
+<!-- Hidden element to store deadline configuration from Django -->
+<div id="deadline-config"
+     data-hard-deadline="{{ hard_deadline_iso|default:'' }}"
+     data-soft-deadline="{{ soft_deadline_iso|default:'' }}"
+     class="hidden"></div>
+
+<section class="max-w-7xl mx-auto fade-in min-h-[60vh]">
+
+    <!-- 1. TIMEOUT MESSAGE (Redesigned System Style) -->
+    <div id="timeout-view" class="{% if not is_hard_deadline %}hidden{% endif %} min-h-[70vh] flex flex-col items-center justify-center relative overflow-hidden py-10">
+
+        <!-- Background Grid -->
+        <div class="absolute inset-0 z-0 opacity-10 pointer-events-none"
+             style="background-image: linear-gradient(#2c2f3b 1px, transparent 1px), linear-gradient(90deg, #2c2f3b 1px, transparent 1px); background-size: 40px 40px;">
+        </div>
+
+        <!-- Main Content -->
+        <div class="relative z-10 text-center px-4">
+
+            <!-- Glitch 00:00 -->
+            <div class="relative inline-block mb-2">
+                <h1 class="text-[100px] md:text-[160px] leading-none font-black text-transparent bg-clip-text bg-gradient-to-b from-red-500 to-transparent font-mono tracking-tighter select-none animate-pulse">
+                    00:00
+                </h1>
+                <div class="absolute top-0 left-0 w-full h-full text-[100px] md:text-[160px] leading-none font-black text-red-500 opacity-30 blur-xl animate-pulse">
+                    00:00
+                </div>
+            </div>
+
+            <!-- Message -->
+            <h2 class="text-2xl md:text-3xl font-bold text-white mt-2 uppercase tracking-widest flex items-center justify-center gap-3">
+                <i data-lucide="lock" class="w-8 h-8 text-red-500"></i>
+                Session Terminated
+            </h2>
+
+            <p class="text-[#9ca3af] mt-4 max-w-lg mx-auto text-lg">
+                The hacking window has concluded. All access vectors have been locked.
+            </p>
+
+            <!-- Terminal Decor -->
+            <div class="mt-8 mx-auto w-full max-w-md bg-[#0d1117] rounded border border-red-900/30 p-4 text-left font-mono text-xs shadow-xl opacity-80">
+                <div class="flex gap-2 text-[#5a6278] border-b border-[#2c2f3b] pb-2 mb-2">
+                    <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                    <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                    <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                    <span class="ml-2">system_lockdown.log</span>
+                </div>
+                <div class="space-y-1">
+                    <div class="text-[#9ca3af]">> Terminating active connections... <span class="text-red-500">DONE</span></div>
+                    <div class="text-[#9ca3af]">> Disabling flag submission... <span class="text-yellow-500">LOCKED</span></div>
+                    <div class="text-[#9ca3af]">> Finalizing scoreboard... <span class="text-green-500">COMPLETE</span></div>
+                    <div class="text-red-500 font-bold">> STATUS: TIME_EXPIRED</div>
+                    <div class="text-red-500 animate-pulse">> Redirecting to analysis_</div>
+                </div>
+            </div>
+
+            <!-- Buttons -->
+            <div class="flex flex-wrap justify-center gap-4 mt-10">
+                <a href="{% url 'scoreboard' %}" class="group px-8 py-3 rounded bg-[#9fef00] text-black font-bold hover:bg-[#8cd600] transition-all flex items-center gap-2 shadow-[0_0_20px_rgba(159,239,0,0.2)] hover:shadow-[0_0_30px_rgba(159,239,0,0.4)]">
+                    <i data-lucide="bar-chart-2" class="w-4 h-4 transition-transform group-hover:scale-110"></i>
+                    VIEW SCOREBOARD
+                </a>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- 2. ACTIVE CHALLENGES CONTENT (Hidden if server says time is up) -->
+    <div id="challenges-content" class="{% if is_hard_deadline %}hidden{% endif %} transition-opacity duration-500">
+        <div class="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-6">
+            <div>
+                <h2 class="text-3xl font-bold text-white mb-2 tracking-tight">Challenges</h2>
+                <p class="text-[#9ca3af] text-sm max-w-md">Select a target to start hacking.</p>
+            </div>
+
+            <div class="flex gap-4 items-center">
+                <!-- Visual Timer -->
+                <div id="visual-timer" class="hidden md:flex font-mono text-[#9fef00] bg-[#9fef00]/10 border border-[#9fef00]/20 px-3 py-1.5 rounded text-sm font-bold items-center gap-2 transition-colors duration-300">
+                    <i data-lucide="timer" class="w-3 h-3"></i>
+                    <span id="timer-display">--:--:--</span>
+                    <span id="timer-label" class="hidden text-xs bg-red-500 text-white px-1 rounded ml-1">OVERTIME</span>
+                </div>
+
+                <div class="glass-panel p-1.5 rounded-lg flex gap-1 overflow-x-auto max-w-full no-scrollbar shadow-lg">
+                    <button onclick="filterCategory('all')" class="cat-btn active px-5 py-2 rounded-md text-xs font-bold transition-all bg-[#9fef00] text-black shadow-[0_0_15px_rgba(159,239,0,0.3)] whitespace-nowrap focus:outline-none select-none" data-cat="all">ALL</button>
+                    {% for cat in categories %}
+                    <button onclick="filterCategory('{{ cat.name }}')" class="cat-btn px-5 py-2 rounded-md text-xs font-bold transition-all text-[#9ca3af] hover:text-white hover:bg-white/10 whitespace-nowrap focus:outline-none select-none" data-cat="{{ cat.name }}">{{ cat.name|upper }}</button>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div id="challenges-grid" class="flex flex-col gap-10 pb-12"></div>
+    </div>
+</section>
+
+<!-- MODAL (Kept exactly as is) -->
+<div id="modal-overlay" class="fixed inset-0 bg-[#000]/60 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm opacity-0 transition-opacity duration-300">
+    <div id="modal-content" class="glass-panel w-full max-w-2xl rounded-xl shadow-2xl transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh] border border-[#3f4454] overflow-hidden">
+
+        <!-- Header -->
+        <div class="p-6 border-b border-[#2c2f3b] flex justify-between items-start bg-[#1a1c23]/90 backdrop-blur-md relative overflow-hidden flex-shrink-0">
+            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#9fef00] to-transparent opacity-50"></div>
+            <div class="flex gap-5 items-center relative z-10">
+                 <div>
+                     <h2 id="modal-title" class="text-2xl font-bold text-white leading-tight tracking-tight">Title</h2>
+                     <div class="flex flex-wrap items-center gap-3 mt-2 text-xs font-bold uppercase tracking-wider">
+                         <span id="modal-cat" class="px-2 py-0.5 rounded bg-white/5 text-[#9ca3af] border border-white/5">Web</span>
+                         <span id="modal-pts" class="text-[#9fef00] text-glow">100 Pts</span>
+                         <span id="modal-diff" class="text-white">Easy</span>
+                         <span id="modal-attempts" class="text-[#5a6278] ml-2 font-mono"></span>
+                     </div>
+                 </div>
+            </div>
+            <button onclick="closeModal()" class="text-[#5a6278] hover:text-white transition-colors p-2 hover:bg-white/5 rounded-lg"><i data-lucide="x" class="w-6 h-6"></i></button>
+        </div>
+
+        <!-- Tabs -->
+        <div class="flex border-b border-[#2c2f3b] bg-[#16181d]/80 backdrop-blur-md px-6 flex-shrink-0">
+            <div id="tab-btn-overview" onclick="switchModalTab('overview')" class="modal-tab active px-4 py-3 text-sm font-bold text-[#5a6278] uppercase tracking-wider hover:text-white flex items-center cursor-pointer transition-colors">Overview</div>
+            <div id="tab-btn-solves" onclick="switchModalTab('solves')" class="modal-tab px-4 py-3 text-sm font-bold text-[#5a6278] uppercase tracking-wider hover:text-white flex items-center gap-2 cursor-pointer transition-colors">Solves <span id="tab-solves-count" class="bg-[#2c2f3b] text-[#9ca3af] px-1.5 py-0.5 rounded text-[10px]">0</span></div>
+        </div>
+
+        <!-- Content Area -->
+        <div class="p-8 overflow-y-auto bg-black/20 backdrop-blur-xl h-[400px]">
+            <div id="tab-overview">
+
+                <div class="p-5 rounded-xl bg-white/5 border border-white/10 backdrop-blur-lg mb-8 shadow-[inset_0_0_20px_rgba(255,255,255,0.02)]">
+                    <p id="modal-desc" class="text-[#9ca3af] text-sm leading-relaxed font-medium"></p>
+                </div>
+
+                <div id="modal-form" class="mb-8">
+                    <label class="block text-[10px] font-bold text-[#5a6278] uppercase tracking-widest mb-3">Submit Flag</label>
+                    <div class="flex shadow-lg rounded-lg overflow-hidden transition-shadow focus-within:shadow-[0_0_15px_rgba(159,239,0,0.15)] border border-[#2c2f3b] focus-within:border-[#9fef00]/50 bg-[#1a1c23]/80 backdrop-blur-sm">
+                        <div class="bg-white/5 px-4 flex items-center text-[#5a6278] border-r border-[#2c2f3b]"><i data-lucide="flag" class="w-4 h-4"></i></div>
+                        <input type="text" id="flag-input" placeholder="CTF{...}" class="flex-1 bg-transparent text-white text-sm px-4 py-3.5 focus:outline-none font-mono transition-colors min-w-0 placeholder-[#5a6278]">
+                        <button onclick="submitFlag()" class="bg-[#9fef00] hover:bg-[#8cd600] text-[#13141b] font-bold px-8 text-sm uppercase tracking-wider transition-all hover:px-10 border-l border-[#2c2f3b]">Submit</button>
+                    </div>
+                    <p id="feedback-msg" class="text-xs mt-3 h-4 font-mono font-bold pl-1"></p>
+                </div>
+
+                <div id="modal-solved" class="hidden text-center py-6 bg-[#9fef00]/5 rounded-lg border border-[#9fef00]/20 animate-pulse mb-8 backdrop-blur-sm">
+                    <span class="text-[#9fef00] font-bold flex items-center justify-center gap-2 text-lg"><i data-lucide="check-circle" class="w-6 h-6"></i> System Compromised</span>
+                </div>
+                 <div id="modal-failed" class="hidden text-center py-6 bg-red-500/5 rounded-lg border border-red-500/20 animate-pulse mb-8 backdrop-blur-sm">
+                    <span class="text-red-500 font-bold flex items-center justify-center gap-2 text-lg"><i data-lucide="x-circle" class="w-6 h-6"></i> Mission Failed</span>
+                    <p class="text-red-400/60 text-xs mt-2">Maximum attempts reached. Access denied.</p>
+                </div>
+
+            </div>
+            <div id="tab-solves" class="hidden"><div id="solves-list" class="space-y-2"></div></div>
+        </div>
+        <div class="h-6 border-t border-[#2c2f3b] bg-[#1a1c23]/90 backdrop-blur-md rounded-b-xl relative overflow-hidden flex-shrink-0"><div class="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#9fef00] to-transparent opacity-50"></div></div>
+    </div>
+</div>
+
+{{ challenges_data|json_script:"challenges-data" }}
+{{ categories_json|json_script:"categories-data" }}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const currentUser = {
+        name: "{{ user.username }}",
+        avatar: "{{ user.avatar_url }}"
+    };
+
+    let challenges = [];
+    let categoriesMeta = {};
+    let currentCat = 'all';
+    let activeId = null;
+    let liveUpdateInterval = null;
+
+    // Timer Globals
+    let timerInterval = null;
+    let statusSyncInterval = null;
+    let currentHardDeadline = "{{ hard_deadline_iso|default:'' }}";
+    let currentSoftDeadline = "{{ soft_deadline_iso|default:'' }}";
+
+    // --- DEADLINE LOGIC START ---
+    document.addEventListener('DOMContentLoaded', () => {
+        // Init regular data
+        initData();
+
+        // Init Timer
+        const deadlineEl = document.getElementById('deadline-config');
+        if (deadlineEl) {
+             currentHardDeadline = deadlineEl.dataset.hardDeadline;
+             currentSoftDeadline = deadlineEl.dataset.softDeadline;
+
+             console.log("Deadlines Init:", {
+                 soft: currentSoftDeadline,
+                 hard: currentHardDeadline
+             });
+        }
+
+        // Start countdown if we have at least a hard deadline
+        if (currentHardDeadline) {
+            startLocalCountdown(currentSoftDeadline, currentHardDeadline);
+        }
+
+        // Sync with server every 5s
+        statusSyncInterval = setInterval(syncLessonStatus, 5000);
+    });
+
+    function startLocalCountdown(softIso, hardIso) {
+        if (timerInterval) clearInterval(timerInterval);
+
+        const visualTimerContainer = document.getElementById('visual-timer');
+        const timerDisplay = document.getElementById('timer-display');
+        const timerLabel = document.getElementById('timer-label');
+        const contentDiv = document.getElementById('challenges-content');
+
+        // Show timer UI
+        if (visualTimerContainer) visualTimerContainer.classList.remove('hidden');
+        if (visualTimerContainer) visualTimerContainer.classList.add('flex');
+
+        timerInterval = setInterval(() => {
+            const now = new Date().getTime();
+            // Преобразуем строки в timestamp
+            const hardTime = hardIso ? new Date(hardIso).getTime() : null;
+            const softTime = softIso ? new Date(softIso).getTime() : null;
+
+            // Если жесткий дедлайн не валиден, таймер не работает
+            if (!hardTime || isNaN(hardTime)) {
+                if(timerDisplay) timerDisplay.innerText = "--:--:--";
+                return;
+            }
+
+            // 1. ПРОВЕРКА НА КОНЕЦ (Жесткий дедлайн)
+            if (now >= hardTime) {
+                clearInterval(timerInterval);
+                lockScreen();
+                if (timerDisplay) timerDisplay.innerHTML = "00:00:00";
+                return;
+            }
+
+            // 2. ОПРЕДЕЛЕНИЕ ФАЗЫ И ЦЕЛИ
+            let targetTime = hardTime;
+            let isRedPhase = false;
+
+            // Проверяем существование Soft Deadline
+            if (softTime && !isNaN(softTime)) {
+                if (now < softTime) {
+                    // ФАЗА 1: Основное время (Зеленый)
+                    // Считаем до Soft Deadline
+                    targetTime = softTime;
+                    isRedPhase = false;
+                } else {
+                    // ФАЗА 2: Дополнительное время (Красный)
+                    // Основное время вышло, считаем до конца (Hard Deadline)
+                    targetTime = hardTime;
+                    isRedPhase = true;
+                }
+            } else {
+                // Если Soft Deadline не задан, считаем сразу до конца (Зеленый)
+                targetTime = hardTime;
+                isRedPhase = false;
+            }
+
+            // 3. ОБНОВЛЕНИЕ ЦВЕТОВ и ЛЕЙБЛА
+            if (visualTimerContainer) {
+                if (isRedPhase) {
+                    // Красный стиль (Extra Time)
+                    if (!visualTimerContainer.classList.contains('text-red-500')) {
+                        visualTimerContainer.classList.add('text-red-500', 'border-red-500/50', 'bg-red-500/10');
+                        visualTimerContainer.classList.remove('text-[#9fef00]', 'border-[#9fef00]/20', 'bg-[#9fef00]/10');
+                        if(timerLabel) timerLabel.classList.remove('hidden'); // Show "OVERTIME"
+                    }
+                } else {
+                    // Зеленый стиль (Main Time)
+                    if (!visualTimerContainer.classList.contains('text-[#9fef00]')) {
+                        visualTimerContainer.classList.remove('text-red-500', 'border-red-500/50', 'bg-red-500/10');
+                        visualTimerContainer.classList.add('text-[#9fef00]', 'border-[#9fef00]/20', 'bg-[#9fef00]/10');
+                        if(timerLabel) timerLabel.classList.add('hidden'); // Hide "OVERTIME"
+                    }
+                }
+            }
+
+            // Если экран был заблокирован, но время еще есть - разблокируем
+            if (contentDiv && contentDiv.classList.contains('hidden')) {
+                unlockScreen();
+            }
+
+            // 4. ОТОБРАЖЕНИЕ ВРЕМЕНИ
+            if (timerDisplay) {
+                const distance = targetTime - now;
+                const safeDistance = distance > 0 ? distance : 0;
+
+                const hours = Math.floor((safeDistance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const minutes = Math.floor((safeDistance % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((safeDistance % (1000 * 60)) / 1000);
+
+                timerDisplay.innerHTML =
+                    (hours < 10 ? "0" + hours : hours) + ":" +
+                    (minutes < 10 ? "0" + minutes : minutes) + ":" +
+                    (seconds < 10 ? "0" + seconds : seconds);
+            }
+
+        }, 1000);
+    }
+
+    function lockScreen() {
+        const contentDiv = document.getElementById('challenges-content');
+        const timeoutDiv = document.getElementById('timeout-view');
+        const overlay = document.getElementById('modal-overlay');
+
+        if (contentDiv && !contentDiv.classList.contains('hidden')) {
+             contentDiv.classList.add('hidden');
+             timeoutDiv.classList.remove('hidden');
+             if (overlay && !overlay.classList.contains('hidden')) {
+                 closeModal();
+             }
+        }
+    }
+
+    function unlockScreen() {
+        const contentDiv = document.getElementById('challenges-content');
+        const timeoutDiv = document.getElementById('timeout-view');
+
+        if(contentDiv) contentDiv.classList.remove('hidden');
+        if(timeoutDiv) timeoutDiv.classList.add('hidden');
+    }
+
+    async function syncLessonStatus() {
+        try {
+            const response = await fetch('/api/lesson/status/');
+            if (!response.ok) return;
+
+            const data = await response.json();
+
+            // 1. Hard Stop from Server
+            if (data.is_hard_deadline) {
+                lockScreen();
+                if (timerInterval) clearInterval(timerInterval);
+                const timerDisplay = document.getElementById('timer-display');
+                if (timerDisplay) timerDisplay.innerHTML = "00:00:00";
+                return;
+            }
+
+            // 2. Timer Removed
+            if (!data.hard_deadline && currentHardDeadline) {
+                console.log("Timer removed by teacher");
+                currentHardDeadline = null;
+                currentSoftDeadline = null;
+                if (timerInterval) clearInterval(timerInterval);
+                unlockScreen();
+                const visualTimerContainer = document.getElementById('visual-timer');
+                if (visualTimerContainer) visualTimerContainer.classList.add('hidden');
+                return;
+            }
+
+            // 3. Timer Updated (Check both deadlines)
+            // Проверяем, изменились ли данные. Обратите внимание: сравниваем строки ISO.
+            if (data.hard_deadline !== currentHardDeadline || data.soft_deadline !== currentSoftDeadline) {
+                console.log("Timer updated. Soft:", data.soft_deadline, "Hard:", data.hard_deadline);
+                currentHardDeadline = data.hard_deadline;
+                currentSoftDeadline = data.soft_deadline;
+
+                // Обновляем атрибуты на случай перезагрузки JS
+                const deadlineEl = document.getElementById('deadline-config');
+                if(deadlineEl) {
+                    deadlineEl.dataset.hardDeadline = data.hard_deadline || '';
+                    deadlineEl.dataset.softDeadline = data.soft_deadline || '';
+                }
+
+                unlockScreen();
+                if(currentHardDeadline) {
+                    startLocalCountdown(currentSoftDeadline, currentHardDeadline);
+                }
+            }
+
+        } catch (e) {
+            console.error("Sync error:", e);
+        }
+    }
+    // --- DEADLINE LOGIC END ---
+
+    function initData() {
+        const challengesEl = document.getElementById('challenges-data');
+        const categoriesEl = document.getElementById('categories-data');
+
+        if (challengesEl) {
+            try {
+                challenges = JSON.parse(challengesEl.textContent);
+            } catch (e) {
+                console.error("Error parsing challenges data:", e);
+            }
+        }
+
+        if (categoriesEl) {
+            try {
+                const raw = JSON.parse(categoriesEl.textContent);
+                categoriesMeta = (typeof raw === 'string') ? JSON.parse(raw) : raw;
+            } catch (e) {
+                console.error("Error parsing categories data:", e);
+            }
+        }
+
+        renderChallenges();
+
+        const flagInput = document.getElementById('flag-input');
+        if (flagInput) {
+            flagInput.addEventListener('keyup', function(event) {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    submitFlag();
+                }
+            });
+        }
+
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeModal();
+            }
+        });
+
+        const overlay = document.getElementById('modal-overlay');
+        if (overlay) {
+            overlay.addEventListener('click', function(event) {
+                if (event.target === overlay) {
+                    closeModal();
+                }
+            });
+        }
+    }
+
+    function startLiveUpdates(id) {
+        if (liveUpdateInterval) clearInterval(liveUpdateInterval);
+
+        liveUpdateInterval = setInterval(async () => {
+            try {
+                const response = await fetch(`/api/challenge/${id}/solves/`);
+                if (!response.ok) return;
+
+                const data = await response.json();
+                const countEl = document.getElementById('tab-solves-count');
+                if(countEl) countEl.innerText = data.solves.length;
+
+                const list = document.getElementById('solves-list');
+                if(list) {
+                    list.innerHTML = '';
+                    if (data.solves.length === 0) {
+                        list.innerHTML = '<div class="text-center text-[#5a6278] text-xs py-10 italic">No solves yet.</div>';
+                    } else {
+                        data.solves.forEach(solve => {
+                            const html = `<div class="flex justify-between items-center bg-white/5 backdrop-blur-lg shadow-[inset_0_0_10px_rgba(255,255,255,0.02)] p-3 rounded-lg border border-white/10 hover:border-[#5a6278]/50 transition-colors group">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded-full bg-[#2c2f3b] flex items-center justify-center overflow-hidden border border-[#2c2f3b]"><img src="${solve.avatar}" class="w-full h-full object-cover"></div>
+                                    <span class="text-sm font-bold text-white group-hover:text-[#9fef00] transition-colors">${solve.user}</span>
+                                </div>
+                                <span class="text-[10px] text-[#5a6278] font-mono">${solve.date}</span>
+                            </div>`;
+                            list.insertAdjacentHTML('beforeend', html);
+                        });
+                    }
+                }
+            } catch (e) {
+                console.error("Live update error:", e);
+            }
+        }, 5000);
+    }
+
+    function stopLiveUpdates() {
+        if (liveUpdateInterval) {
+            clearInterval(liveUpdateInterval);
+            liveUpdateInterval = null;
+        }
+    }
+
+    function renderChallenges() {
+        const grid = document.getElementById('challenges-grid');
+        if (!grid) return;
+
+        grid.innerHTML = '';
+        const list = currentCat === 'all' ? challenges : challenges.filter(c => c.category === currentCat);
+        const categoriesInList = [...new Set(list.map(c => c.category))];
+
+        if (categoriesInList.length === 0) {
+            grid.innerHTML = '<div class="text-center text-[#5a6278] py-12">No challenges found.</div>';
+            return;
+        }
+
+        categoriesInList.forEach(catName => {
+            const catChallenges = list.filter(c => c.category === catName);
+            const catInfo = categoriesMeta[catName] || { name: catName, icon: 'folder' };
+
+            const sectionHTML = `
+                <div class="fade-in mb-10">
+                    <div class="flex items-center gap-3 mb-5 border-b border-[#2c2f3b] pb-2">
+                        <div class="p-1.5 rounded bg-[#9fef00]/10 text-[#9fef00] border border-[#9fef00]/20">
+                            <i data-lucide="${catInfo.icon}" class="w-4 h-4"></i>
+                        </div>
+                        <h3 class="text-lg font-bold text-white uppercase tracking-wider font-mono">${catInfo.name.toUpperCase()}</h3>
+                        <span class="text-[#5a6278] text-xs font-mono ml-auto bg-[#1a1c23] px-2 py-1 rounded border border-[#2c2f3b]">${catChallenges.length} TASKS</span>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6">
+                        ${catChallenges.map((c, index) => createChallengeCard(c, index)).join('')}
+                    </div>
+                </div>`;
+            grid.insertAdjacentHTML('beforeend', sectionHTML);
+        });
+        if(typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    function createChallengeCard(c, index) {
+        const diffColor = c.difficulty === 'Easy' ? 'text-green-500' : c.difficulty === 'Medium' ? 'text-yellow-500' : 'text-red-500';
+
+        let borderClass = '';
+        let bgClass = '';
+        let statusColor = '';
+        let statusText = '';
+        let progressColor = '';
+        let solvedIcon = '';
+        let failedIcon = '';
+
+        if (c.failed) {
+            borderClass = 'border-red-500/50 hover:border-red-500';
+            bgClass = 'bg-red-500/5';
+            statusColor = 'text-red-500';
+            statusText = 'FAILED';
+            progressColor = 'bg-red-500 shadow-[0_0_10px_#ef4444]';
+            failedIcon = '<div class="absolute right-0 top-0 w-0 h-0 border-t-[40px] border-l-[40px] border-t-red-500 border-l-transparent z-10 shadow-lg"><i data-lucide="x" class="absolute -top-[36px] -left-[16px] w-3.5 h-3.5 text-black font-bold"></i></div>';
+        } else if (c.solved) {
+            borderClass = 'border-[#9fef00]/50 hover:border-[#9fef00]';
+            bgClass = 'bg-[#9fef00]/5';
+            statusColor = 'text-[#9fef00]';
+            statusText = 'PWNED';
+            progressColor = 'bg-[#9fef00] shadow-[0_0_10px_#9fef00]';
+            solvedIcon = '<div class="absolute right-0 top-0 w-0 h-0 border-t-[40px] border-l-[40px] border-t-[#9fef00] border-l-transparent z-10 shadow-lg"><i data-lucide="check" class="absolute -top-[36px] -left-[16px] w-3.5 h-3.5 text-black font-bold"></i></div>';
+        } else {
+            borderClass = 'border-[#2c2f3b] hover:border-[#9fef00]/30';
+            bgClass = 'bg-[#1a1c23]';
+            statusColor = 'text-[#5a6278]';
+            statusText = 'ACTIVE';
+            progressColor = 'bg-[#2c2f3b]';
+        }
+
+        let attemptsStr = '';
+        if (!c.solved && !c.failed) {
+            if (c.max_attempts > 0) {
+                attemptsStr = `${c.attempts}/${c.max_attempts}`;
+            } else {
+                attemptsStr = `${c.attempts}/∞`;
+            }
+        }
+
+        const attemptsBadge = attemptsStr ? `
+            <span class="text-[#5a6278] font-mono text-[10px] tracking-tight bg-[#13141b] px-1.5 py-0.5 rounded border border-[#2c2f3b] flex items-center gap-1 ml-auto mr-2">
+                <i data-lucide="hash" class="w-3 h-3"></i> ${attemptsStr}
+            </span>
+        ` : '<div class="ml-auto"></div>';
+
+
+        return `
+            <div onclick="openModal(${c.id})" style="animation-delay: ${index * 0.05}s" class="challenge-card animate-card rounded-xl p-6 cursor-pointer group flex flex-col h-full ${bgClass} border ${borderClass} transition-all relative overflow-hidden">
+                 ${solvedIcon}
+                 ${failedIcon}
+                 <div class="flex items-start justify-end mb-4"><div class="text-right"><div class="text-xl font-bold text-white font-mono tracking-tight">${c.points}</div><div class="text-[10px] text-[#5a6278] uppercase font-bold tracking-wider">PTS</div></div></div>
+                 <h4 class="text-white font-bold text-lg mb-6 truncate group-hover:text-white transition-colors tracking-tight">${c.title}</h4>
+                 <div class="mt-auto">
+                    <div class="w-full bg-[#13141b] h-1.5 rounded-full mb-3 overflow-hidden border border-white/5"><div class="h-full rounded-full ${c.solved || c.failed ? 'w-full' : 'w-0'} ${progressColor} transition-all duration-700 ease-out"></div></div>
+                    <div class="flex items-center justify-between text-xs font-medium">
+                        <span class="${diffColor} px-2 py-0.5 rounded bg-white/5 border border-white/5">${c.difficulty}</span>
+                        ${attemptsBadge}
+                        <span class="${statusColor} uppercase text-[10px] font-bold tracking-wider">${statusText}</span>
+                    </div>
+                 </div>
+            </div>`;
+    }
+
+    function filterCategory(cat) {
+        currentCat = cat;
+        document.querySelectorAll('.cat-btn').forEach(btn => {
+            if(btn.dataset.cat === cat) {
+                btn.className = 'cat-btn active px-5 py-2 rounded-md text-xs font-bold transition-all bg-[#9fef00] text-black shadow-[0_0_15px_rgba(159,239,0,0.3)] whitespace-nowrap focus:outline-none select-none';
+            } else {
+                btn.className = 'cat-btn px-5 py-2 rounded-md text-xs font-bold transition-all text-[#9ca3af] hover:text-white hover:bg-white/10 whitespace-nowrap focus:outline-none select-none';
+            }
+        });
+        renderChallenges();
+    }
+
+    function openModal(id) {
+        startLiveUpdates(id);
+
+        const c = challenges.find(i => i.id === id);
+        activeId = id;
+        document.getElementById('modal-title').innerText = c.title;
+        document.getElementById('modal-desc').innerText = c.desc;
+        document.getElementById('modal-pts').innerText = c.points + ' Pts';
+
+        const catName = categoriesMeta[c.category] ? categoriesMeta[c.category].name : c.category;
+        document.getElementById('modal-cat').innerText = catName.toUpperCase();
+        document.getElementById('modal-diff').innerText = c.difficulty;
+
+        const attemptsEl = document.getElementById('modal-attempts');
+        if (c.max_attempts > 0) {
+            attemptsEl.innerText = `Attempts: ${c.attempts}/${c.max_attempts}`;
+        } else {
+            attemptsEl.innerText = `Attempts: ${c.attempts}/∞`;
+        }
+
+        const formDiv = document.getElementById('modal-form');
+        const solvedDiv = document.getElementById('modal-solved');
+        const failedDiv = document.getElementById('modal-failed');
+        const input = document.getElementById('flag-input');
+        const feedback = document.getElementById('feedback-msg');
+        input.value = '';
+        feedback.innerText = '';
+        input.classList.remove('border-red-500', 'text-red-500');
+
+        formDiv.classList.add('hidden');
+        solvedDiv.classList.add('hidden');
+        failedDiv.classList.add('hidden');
+
+        if(c.solved) {
+            solvedDiv.classList.remove('hidden');
+        } else if (c.failed) {
+            failedDiv.classList.remove('hidden');
+        } else {
+            formDiv.classList.remove('hidden');
+        }
+
+        const countEl = document.getElementById('tab-solves-count');
+        if(countEl) countEl.innerText = c.solves.length;
+
+        const solvesList = document.getElementById('solves-list');
+        solvesList.innerHTML = '';
+        if (c.solves.length === 0) {
+            solvesList.innerHTML = '<div class="text-center text-[#5a6278] text-xs py-10 italic">No solves yet.</div>';
+        } else {
+            c.solves.forEach(solve => {
+                solvesList.insertAdjacentHTML('beforeend', `<div class="flex justify-between items-center bg-white/5 backdrop-blur-lg shadow-[inset_0_0_10px_rgba(255,255,255,0.02)] p-3 rounded-lg border border-white/10 hover:border-[#5a6278]/50 transition-colors group"><div class="flex items-center gap-3"><div class="w-8 h-8 rounded-full bg-[#2c2f3b] flex items-center justify-center overflow-hidden border border-[#2c2f3b]"><img src="${solve.avatar}" class="w-full h-full object-cover"></div><span class="text-sm font-bold text-white group-hover:text-[#9fef00] transition-colors">${solve.user}</span></div><span class="text-[10px] text-[#5a6278] font-mono">${solve.date}</span></div>`);
+            });
+        }
+
+        switchModalTab('overview');
+        const overlay = document.getElementById('modal-overlay');
+        const content = document.getElementById('modal-content');
+        overlay.classList.remove('hidden');
+        setTimeout(() => { overlay.classList.remove('opacity-0'); content.classList.remove('scale-95'); content.classList.add('scale-100'); }, 10);
+    }
+
+    function switchModalTab(tabName) {
+        document.getElementById('tab-overview').classList.add('hidden');
+        document.getElementById('tab-solves').classList.add('hidden');
+        document.getElementById('tab-btn-overview').classList.remove('active', 'text-white');
+        document.getElementById('tab-btn-solves').classList.remove('active', 'text-white');
+        document.getElementById('tab-btn-overview').classList.add('text-[#5a6278]');
+        document.getElementById('tab-btn-solves').classList.add('text-[#5a6278]');
+        document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+        document.getElementById(`tab-btn-${tabName}`).classList.add('active', 'text-white');
+        document.getElementById(`tab-btn-${tabName}`).classList.remove('text-[#5a6278]');
+    }
+
+    function closeModal() {
+        stopLiveUpdates();
+        const overlay = document.getElementById('modal-overlay');
+        const content = document.getElementById('modal-content');
+        overlay.classList.add('opacity-0');
+        content.classList.remove('scale-100');
+        content.classList.add('scale-95');
+        setTimeout(() => overlay.classList.add('hidden'), 300);
+    }
+
+    async function submitFlag() {
+        const input = document.getElementById('flag-input');
+        const feedback = document.getElementById('feedback-msg');
+
+        if (!input.value) return;
+
+        try {
+            const response = await fetch("{% url 'submit_flag' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({
+                    challenge_id: activeId,
+                    flag: input.value
+                })
+            });
+
+            const data = await response.json();
+            const c = challenges.find(i => i.id === activeId);
+
+            if(data.status === 'success') {
+                feedback.className = 'text-xs mt-3 h-4 font-mono font-bold pl-1 text-[#9fef00]';
+                feedback.innerHTML = '<i class="inline w-3 h-3 mr-1" data-lucide="check"></i> ACCESS GRANTED';
+
+                if(c) {
+                    c.solved = true;
+                    const newSolve = {
+                        user: currentUser.name,
+                        avatar: currentUser.avatar,
+                        date: "Just now"
+                    };
+                    if (!c.solves) c.solves = [];
+                    c.solves.unshift(newSolve);
+
+                    const countEl = document.getElementById('tab-solves-count');
+                    if(countEl) countEl.innerText = c.solves.length;
+
+                    const solvesList = document.getElementById('solves-list');
+                    if (solvesList && solvesList.querySelector('.text-center')) solvesList.innerHTML = '';
+
+                    const solveHtml = `<div class="flex justify-between items-center bg-white/5 backdrop-blur-lg shadow-[inset_0_0_10px_rgba(255,255,255,0.02)] p-3 rounded-lg border border-white/10 hover:border-[#5a6278]/50 transition-colors group animate-in fade-in slide-in-from-top-2"><div class="flex items-center gap-3"><div class="w-8 h-8 rounded-full bg-[#2c2f3b] flex items-center justify-center overflow-hidden border border-[#2c2f3b]"><img src="${currentUser.avatar}" class="w-full h-full object-cover"></div><span class="text-sm font-bold text-white group-hover:text-[#9fef00] transition-colors">${currentUser.name}</span></div><span class="text-[10px] text-[#5a6278] font-mono">Just now</span></div>`;
+                    if(solvesList) solvesList.insertAdjacentHTML('afterbegin', solveHtml);
+                }
+
+                if(typeof lucide !== 'undefined') lucide.createIcons();
+
+                document.getElementById('modal-form').classList.add('hidden');
+                document.getElementById('modal-solved').classList.remove('hidden');
+
+                setTimeout(() => {
+                    closeModal();
+                    renderChallenges();
+                }, 1500);
+            } else {
+                feedback.className = 'text-xs mt-3 h-4 font-mono font-bold pl-1 text-red-500';
+                feedback.innerText = data.message;
+                input.classList.add('border-red-500', 'text-red-500');
+                setTimeout(() => input.classList.remove('border-red-500', 'text-red-500'), 1000);
+
+                if (c) {
+                    c.attempts = (c.attempts || 0) + 1;
+                    const attemptsEl = document.getElementById('modal-attempts');
+                    if(c.max_attempts > 0) attemptsEl.innerText = `Attempts: ${c.attempts}/${c.max_attempts}`;
+                }
+
+                if (data.challenge_failed) {
+                     if (c) c.failed = true;
+                     document.getElementById('modal-form').classList.add('hidden');
+                     document.getElementById('modal-failed').classList.remove('hidden');
+                     setTimeout(() => {
+                         closeModal();
+                         renderChallenges();
+                     }, 2000);
+                }
+            }
+        } catch (e) {
+            console.error("Fetch error:", e);
+            feedback.innerText = "Network Error. Check console.";
+            feedback.className = 'text-xs mt-3 h-4 font-mono font-bold pl-1 text-red-500';
+        }
+    }
+</script>
+{% endblock %}

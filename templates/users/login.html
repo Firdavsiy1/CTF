@@ -56,7 +56,7 @@
                                 <i data-lucide="user" class="h-4 w-4 text-[#5a6278] group-focus-within/input:text-[#9fef00]"></i>
                             </div>
 
-                            <div class="login-input-wrapper">
+                            <div class="input-wrapper">
                                 <input type="text" name="username" class="w-full" required placeholder="Codename">
                             </div>
 
@@ -75,7 +75,7 @@
                                 <i data-lucide="key" class="h-4 w-4 text-[#5a6278] group-focus-within/input:text-[#9fef00]"></i>
                             </div>
 
-                            <div class="login-input-wrapper">
+                            <div class="input-wrapper">
                                 <input type="password" name="password" class="w-full" required placeholder="••••••••">
                             </div>
 
@@ -119,27 +119,4 @@
     </div>
 </div>
 
-<style>
-    .login-input-wrapper input {
-        width: 100%;
-        background-color: rgba(21, 23, 30, 0.4);
-        border: 1px solid #2c2f3b;
-        color: white;
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 0.875rem;
-        border-radius: 0.5rem;
-        padding: 0.75rem 0.75rem 0.75rem 2.5rem;
-        transition: all 0.2s;
-    }
-    .login-input-wrapper input:focus {
-        outline: none;
-        background-color: rgba(21, 23, 30, 0.8);
-        border-color: #9fef00;
-        box-shadow: 0 0 15px rgba(159, 239, 0, 0.1);
-    }
-    .login-input-wrapper input::placeholder {
-        color: #4b5563;
-        font-family: sans-serif;
-    }
-</style>
 {% endblock %}
